@@ -1,0 +1,642 @@
+<!DOCTYPE html>
+<html lang="sk">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Spam Filter AI</title>
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --surface: #12121a;
+    --surface2: #1a1a26;
+    --border: rgba(255,255,255,0.08);
+    --border-bright: rgba(255,255,255,0.15);
+    --text: #e8e8f0;
+    --text-muted: #888899;
+    --accent: #6c63ff;
+    --accent-dim: rgba(108,99,255,0.15);
+    --spam-red: #ff4757;
+    --spam-dim: rgba(255,71,87,0.12);
+    --ham-green: #2ed573;
+    --ham-dim: rgba(46,213,115,0.12);
+    --warn: #ffa502;
+    --radius: 12px;
+    --radius-sm: 8px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  /* Header */
+  header {
+    width: 100%;
+    padding: 20px 40px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: rgba(10,10,15,0.8);
+    backdrop-filter: blur(20px);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .logo {
+    width: 36px; height: 36px;
+    background: linear-gradient(135deg, #6c63ff, #a855f7);
+    border-radius: 10px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 18px;
+  }
+  header h1 {
+    font-size: 18px;
+    font-weight: 600;
+    letter-spacing: -0.3px;
+  }
+  header span { color: var(--text-muted); font-size: 13px; margin-left: auto; }
+  .status-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--ham-green);
+    box-shadow: 0 0 8px var(--ham-green);
+    animation: pulse 2s infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+
+  /* Main layout */
+  main {
+    width: 100%;
+    max-width: 900px;
+    padding: 40px 24px 80px;
+    display: grid;
+    grid-template-columns: 1fr 300px;
+    gap: 24px;
+  }
+  @media (max-width: 740px) {
+    main { grid-template-columns: 1fr; }
+  }
+
+  /* Cards */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 24px;
+  }
+  .card-label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1.2px;
+    color: var(--text-muted);
+    margin-bottom: 16px;
+  }
+
+  /* Textarea */
+  textarea {
+    width: 100%;
+    min-height: 200px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    color: var(--text);
+    font-family: inherit;
+    font-size: 15px;
+    line-height: 1.6;
+    padding: 16px;
+    resize: vertical;
+    transition: border-color 0.2s;
+    outline: none;
+  }
+  textarea:focus { border-color: var(--accent); }
+  textarea::placeholder { color: var(--text-muted); }
+
+  /* Buttons */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 24px;
+    border-radius: var(--radius-sm);
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    border: none;
+    transition: all 0.2s;
+    letter-spacing: -0.2px;
+  }
+  .btn:active { transform: scale(0.97); }
+  .btn-primary {
+    background: var(--accent);
+    color: white;
+    width: 100%;
+    justify-content: center;
+    margin-top: 12px;
+  }
+  .btn-primary:hover { background: #7c74ff; }
+  .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+  .btn-sm {
+    padding: 8px 16px;
+    font-size: 13px;
+  }
+  .btn-outline {
+    background: transparent;
+    border: 1px solid var(--border-bright);
+    color: var(--text);
+  }
+  .btn-outline:hover { border-color: var(--accent); color: var(--accent); }
+  .btn-success { background: var(--ham-green); color: #000; }
+  .btn-danger  { background: var(--spam-red);  color: #fff; }
+
+  /* Result panel */
+  .result-box {
+    padding: 20px;
+    border-radius: var(--radius-sm);
+    border: 1px solid;
+    margin-top: 16px;
+    animation: fadeIn 0.3s ease;
+    display: none;
+  }
+  .result-box.spam {
+    background: var(--spam-dim);
+    border-color: rgba(255,71,87,0.3);
+  }
+  .result-box.ham {
+    background: var(--ham-dim);
+    border-color: rgba(46,213,115,0.3);
+  }
+  .result-label {
+    font-size: 28px;
+    font-weight: 700;
+    letter-spacing: -1px;
+    margin-bottom: 4px;
+  }
+  .result-box.spam .result-label { color: var(--spam-red); }
+  .result-box.ham  .result-label { color: var(--ham-green); }
+  .result-conf {
+    font-size: 13px;
+    color: var(--text-muted);
+    margin-bottom: 16px;
+  }
+
+  /* Confidence bar */
+  .conf-bar-wrap {
+    background: var(--surface2);
+    border-radius: 100px;
+    height: 6px;
+    margin-bottom: 20px;
+    overflow: hidden;
+  }
+  .conf-bar {
+    height: 100%;
+    border-radius: 100px;
+    transition: width 0.6s cubic-bezier(0.23,1,0.32,1);
+  }
+  .spam .conf-bar { background: var(--spam-red); }
+  .ham  .conf-bar { background: var(--ham-green); }
+
+  /* Feedback */
+  .feedback-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .feedback-label {
+    font-size: 13px;
+    color: var(--text-muted);
+    flex-shrink: 0;
+  }
+  .feedback-msg {
+    font-size: 13px;
+    padding: 6px 12px;
+    border-radius: var(--radius-sm);
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    margin-top: 10px;
+    display: none;
+  }
+
+  /* Stats sidebar */
+  .stat-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .stat-item:last-child { border-bottom: none; }
+  .stat-name {
+    font-size: 13px;
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .stat-icon { font-size: 16px; }
+  .stat-val {
+    font-size: 16px;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+  .stat-val.green { color: var(--ham-green); }
+  .stat-val.red   { color: var(--spam-red); }
+  .stat-val.purple{ color: #a78bfa; }
+  .stat-val.amber { color: var(--warn); }
+
+  /* Accuracy ring */
+  .accuracy-ring {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 20px 0 16px;
+    gap: 4px;
+  }
+  .ring-svg { transform: rotate(-90deg); }
+  .ring-track { fill: none; stroke: var(--surface2); stroke-width: 8; }
+  .ring-fill  {
+    fill: none; stroke: var(--accent);
+    stroke-width: 8;
+    stroke-linecap: round;
+    transition: stroke-dashoffset 1s cubic-bezier(0.23,1,0.32,1);
+  }
+  .ring-label {
+    font-size: 24px;
+    font-weight: 700;
+    letter-spacing: -1px;
+  }
+  .ring-sub {
+    font-size: 11px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+
+  /* Retrain button */
+  .retrain-row {
+    margin-top: 16px;
+    display: flex;
+    gap: 8px;
+  }
+  .retrain-msg {
+    font-size: 12px;
+    color: var(--text-muted);
+    text-align: center;
+    margin-top: 8px;
+    min-height: 18px;
+  }
+
+  /* Examples */
+  .examples { margin-top: 20px; }
+  .ex-title {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-muted);
+    margin-bottom: 10px;
+  }
+  .ex-chip {
+    display: inline-block;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 5px 10px;
+    font-size: 12px;
+    color: var(--text-muted);
+    cursor: pointer;
+    margin: 0 4px 6px 0;
+    transition: all 0.15s;
+  }
+  .ex-chip:hover { border-color: var(--accent); color: var(--accent); }
+  .ex-chip.is-spam { border-color: rgba(255,71,87,0.3); }
+  .ex-chip.is-spam:hover { border-color: var(--spam-red); color: var(--spam-red); }
+
+  /* Loading spinner */
+  .spinner {
+    width: 16px; height: 16px;
+    border: 2px solid rgba(255,255,255,0.3);
+    border-top-color: white;
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
+    display: none;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @keyframes fadeIn { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:translateY(0); } }
+
+  /* Toast */
+  .toast {
+    position: fixed;
+    bottom: 24px; right: 24px;
+    background: var(--surface2);
+    border: 1px solid var(--border-bright);
+    border-radius: var(--radius-sm);
+    padding: 12px 18px;
+    font-size: 14px;
+    z-index: 999;
+    transform: translateY(80px);
+    transition: transform 0.3s cubic-bezier(0.23,1,0.32,1);
+  }
+  .toast.show { transform: translateY(0); }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">🛡️</div>
+  <h1>Spam Filter AI</h1>
+  <div class="status-dot" id="statusDot"></div>
+  <span id="statusText">Načítavam...</span>
+</header>
+
+<main>
+  <!-- Left column: classifier -->
+  <div>
+    <div class="card">
+      <div class="card-label">Analyzovať e-mail</div>
+      <textarea id="emailText"
+        placeholder="Vložte text e-mailu sem...&#10;&#10;Napríklad: Congratulations! You've won $1,000,000!"></textarea>
+
+      <button class="btn btn-primary" id="classifyBtn" onclick="classify()">
+        <div class="spinner" id="btnSpinner"></div>
+        <span id="btnText">🔍 Analyzovať e-mail</span>
+      </button>
+
+      <!-- Result -->
+      <div class="result-box" id="resultBox">
+        <div class="result-label" id="resultLabel">SPAM</div>
+        <div class="result-conf" id="resultConf">Istota: 97.3%</div>
+        <div class="conf-bar-wrap">
+          <div class="conf-bar" id="confBar" style="width:0%"></div>
+        </div>
+        <div class="feedback-row">
+          <span class="feedback-label">Je výsledok správny?</span>
+          <button class="btn btn-sm btn-success" onclick="feedback(true)">✓ Áno</button>
+          <button class="btn btn-sm btn-danger"  onclick="feedback(false)">✗ Nie</button>
+        </div>
+        <div class="feedback-msg" id="feedbackMsg"></div>
+      </div>
+    </div>
+
+    <!-- Examples -->
+    <div class="examples">
+      <div class="ex-title">Príklady na otestovanie</div>
+      <span class="ex-chip is-spam" onclick="setExample('Congratulations! You won $1,000,000! Click here now to claim your prize!')">💸 Spam: výhra</span>
+      <span class="ex-chip is-spam" onclick="setExample('FREE Viagra online! Best prices, no prescription needed. Buy now!')">💊 Spam: lieky</span>
+      <span class="ex-chip is-spam" onclick="setExample('URGENT: Your account suspended! Verify identity immediately or lose access!')">⚠️ Spam: phishing</span>
+      <span class="ex-chip" onclick="setExample('Hi John, can we schedule a meeting tomorrow at 3pm to discuss the project?')">📅 Legitímny: porada</span>
+      <span class="ex-chip" onclick="setExample('Please find attached the quarterly report. Let me know if you have any questions.')">📎 Legitímny: správa</span>
+      <span class="ex-chip" onclick="setExample('Your Amazon order has been shipped. Expected delivery Friday. Track your package.')">📦 Legitímny: objednávka</span>
+    </div>
+  </div>
+
+  <!-- Right column: stats -->
+  <div>
+    <div class="card" style="margin-bottom: 16px;">
+      <div class="card-label">Presnosť modelu</div>
+      <div class="accuracy-ring">
+        <svg width="100" height="100" class="ring-svg">
+          <circle class="ring-track" cx="50" cy="50" r="38"/>
+          <circle class="ring-fill" cx="50" cy="50" r="38"
+            id="ringFill"
+            stroke-dasharray="238.76"
+            stroke-dashoffset="238.76"/>
+        </svg>
+        <div class="ring-label" id="accuracyPct">--</div>
+        <div class="ring-sub">Klasifikácia</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-label">Štatistiky</div>
+
+      <div class="stat-item">
+        <span class="stat-name"><span class="stat-icon">📧</span> Celkom e-mailov</span>
+        <span class="stat-val purple" id="statTotal">--</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-name"><span class="stat-icon">🚨</span> Spam</span>
+        <span class="stat-val red" id="statSpam">--</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-name"><span class="stat-icon">✅</span> Legitímne</span>
+        <span class="stat-val green" id="statHam">--</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-name"><span class="stat-icon">🔧</span> Opravené chyby</span>
+        <span class="stat-val amber" id="statCorr">--</span>
+      </div>
+      <div class="stat-item">
+        <span class="stat-name"><span class="stat-icon">🕐</span> Posledný tréning</span>
+        <span class="stat-val" id="statTime" style="font-size:12px; color: var(--text-muted);">--</span>
+      </div>
+
+      <div class="retrain-row">
+        <button class="btn btn-outline btn-sm" style="flex:1; justify-content:center"
+          onclick="retrain()" id="retrainBtn">
+          ⚙️ Znovu natrénovať
+        </button>
+        <button class="btn btn-outline btn-sm" onclick="loadStats()" title="Obnoviť">
+          🔄
+        </button>
+      </div>
+      <div class="retrain-msg" id="retrainMsg"></div>
+    </div>
+  </div>
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  let lastResult = null;
+  let lastText   = null;
+
+  // ── Helpers ──────────────────────────────────────────────────────────────
+
+  function showToast(msg, duration=2800) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), duration);
+  }
+
+  function setLoading(on) {
+    const btn = document.getElementById('classifyBtn');
+    const sp  = document.getElementById('btnSpinner');
+    const tx  = document.getElementById('btnText');
+    btn.disabled = on;
+    sp.style.display  = on ? 'block' : 'none';
+    tx.textContent = on ? 'Analyzujem...' : '🔍 Analyzovať e-mail';
+  }
+
+  function setExample(text) {
+    document.getElementById('emailText').value = text;
+    document.getElementById('resultBox').style.display = 'none';
+    document.getElementById('feedbackMsg').style.display = 'none';
+  }
+
+  // ── API calls ─────────────────────────────────────────────────────────────
+
+  async function classify() {
+    const text = document.getElementById('emailText').value.trim();
+    if (!text) { showToast('⚠️ Zadajte text e-mailu'); return; }
+
+    setLoading(true);
+    document.getElementById('feedbackMsg').style.display = 'none';
+
+    try {
+      const res  = await fetch('/api/classify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text })
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+
+      lastResult = data;
+      lastText   = text;
+      showResult(data);
+    } catch (e) {
+      showToast('❌ Chyba: ' + e.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function showResult(data) {
+    const box   = document.getElementById('resultBox');
+    const label = document.getElementById('resultLabel');
+    const conf  = document.getElementById('resultConf');
+    const bar   = document.getElementById('confBar');
+
+    box.className = 'result-box ' + (data.is_spam ? 'spam' : 'ham');
+    box.style.display = 'block';
+
+    label.textContent = data.is_spam ? '🚨 SPAM' : '✅ LEGITÍMNY';
+    conf.textContent  = `Istota klasifikácie: ${data.confidence}%`;
+
+    // Animate bar
+    setTimeout(() => { bar.style.width = data.confidence + '%'; }, 50);
+    loadStats();
+  }
+
+  async function feedback(isCorrect) {
+    if (!lastResult || !lastText) return;
+
+    const msgEl = document.getElementById('feedbackMsg');
+    try {
+      const res  = await fetch('/api/feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          text      : lastText,
+          predicted : lastResult.label,
+          is_correct: isCorrect
+        })
+      });
+      const data = await res.json();
+
+      msgEl.style.display = 'block';
+      if (isCorrect) {
+        msgEl.textContent = '👍 Ďakujeme za potvrdenie!';
+      } else {
+        msgEl.textContent = data.retrained
+          ? `🔧 Oprava uložená. Nová presnosť: ${data.new_accuracy}%`
+          : '💾 Oprava uložená.';
+        loadStats();
+      }
+    } catch (e) {
+      msgEl.style.display = 'block';
+      msgEl.textContent = '❌ Chyba pri ukladaní spätnej väzby.';
+    }
+  }
+
+  async function retrain() {
+    const btn = document.getElementById('retrainBtn');
+    const msg = document.getElementById('retrainMsg');
+    btn.disabled = true;
+    msg.textContent = '⚙️ Trénujem...';
+
+    try {
+      const res  = await fetch('/api/retrain', { method: 'POST' });
+      const data = await res.json();
+      msg.textContent = `✅ Hotovo! Presnosť: ${data.accuracy}%`;
+      loadStats();
+    } catch (e) {
+      msg.textContent = '❌ Chyba pri trénovaní.';
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  async function loadStats() {
+    try {
+      const res  = await fetch('/api/stats');
+      const data = await res.json();
+
+      document.getElementById('statTotal').textContent = data.total_emails ?? '--';
+      document.getElementById('statSpam').textContent  = data.spam_count  ?? '--';
+      document.getElementById('statHam').textContent   = data.ham_count   ?? '--';
+      document.getElementById('statCorr').textContent  = data.corrections ?? '--';
+
+      const acc = data.model_accuracy ?? 0;
+      document.getElementById('accuracyPct').textContent = acc + '%';
+
+      // Update ring (circumference = 2πr = 238.76)
+      const circ  = 238.76;
+      const offset = circ - (acc / 100) * circ;
+      document.getElementById('ringFill').style.strokeDashoffset = offset;
+
+      const t = data.last_trained;
+      if (t) {
+        // Format datetime
+        const dt = new Date(t.replace(' ', 'T') + 'Z');
+        document.getElementById('statTime').textContent =
+          dt.toLocaleTimeString('sk', { hour:'2-digit', minute:'2-digit' }) +
+          ' · ' + dt.toLocaleDateString('sk', { day:'2-digit', month:'2-digit' });
+      }
+    } catch (e) {
+      console.error('Stats error:', e);
+    }
+  }
+
+  async function checkHealth() {
+    try {
+      const res  = await fetch('/api/health');
+      const data = await res.json();
+      const dot  = document.getElementById('statusDot');
+      const txt  = document.getElementById('statusText');
+      if (data.model_ready) {
+        dot.style.background = 'var(--ham-green)';
+        dot.style.boxShadow  = '0 0 8px var(--ham-green)';
+        txt.textContent = 'Model aktívny';
+      } else {
+        dot.style.background = 'var(--warn)';
+        txt.textContent = 'Inicializácia...';
+      }
+    } catch (e) {
+      document.getElementById('statusText').textContent = 'Offline';
+    }
+  }
+
+  // ── Enter key shortcut ────────────────────────────────────────────────────
+  document.getElementById('emailText').addEventListener('keydown', e => {
+    if (e.key === 'Enter' && e.ctrlKey) classify();
+  });
+
+  // ── Init ──────────────────────────────────────────────────────────────────
+  checkHealth();
+  loadStats();
+  setInterval(checkHealth, 10000);
+</script>
+</body>
+</html>
